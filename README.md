@@ -52,13 +52,9 @@ the analysis
 
 4.  Part2\_all\_models\_prev\_car.R
 
-<!-- -->
-
     -   Script for producing prevalence icar models
 
 5.  Part2\_all\_models\_prev\_rintc.R
-
-<!-- -->
 
     -   Script for producing prevalence random intercept models
 
@@ -85,7 +81,9 @@ the analysis
 
 10. Part5\_all\_models\_tables\_appendix\_notif\_car.R
 
-    -   Source of table S4\_Table\_notif\_models\_car
+<!-- -->
+
+    -   Source of table S4_Table_notif_models_car
 
 11. Part5\_all\_models\_tables\_appendix\_notif\_rintc.R
 
@@ -101,8 +99,18 @@ the analysis
 
 13. Part5\_all\_models\_tables\_appendix\_prev\_rintc.R
 
-    -   Source of S1\_Table\_prev\_models\_rintc
+<!-- -->
+
+    -   Source of S1_Table_prev_models_rintc
 
 <br>
 
 ## Data
+
+### **`dat_scale.rds`**
+
+Neighbourhood level variables
+
+### **`dat_scale_ln.rds`**
+
+Neighbourhood level variables in longitudinal format
