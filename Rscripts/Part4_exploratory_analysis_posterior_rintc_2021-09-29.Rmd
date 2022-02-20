@@ -1,0 +1,451 @@
+---
+title: "TB Hotspot Clusters rIntercept"
+
+subtitle: "Modelling for TB hotspotclusters analysis: Visualising the model results"
+
+author: |
+  | McEwen Khundi
+  |
+  | London School of Hygiene & Tropical Medicine, Liverpool, UK
+  | Malawi-Liverpool-Wellcome Clinical Research Programme, Blantyre, Malawi
+  |
+
+date: | 
+  | `r format(Sys.time(), "%B %d, %Y")`
+  |
+  | Table of Contents:
+output: 
+  html_document:
+    df_print: paged
+    toc: true
+---
+
+<br>
+
+## 1. Backgound
+
+<br>
+
+## 2. Set-up
+
+Load all required packages for analysis.
+
+```{r setup, message=FALSE}
+library(tidyverse) # for data manipulation
+library(pmthemes) # for ggplot themes
+library(knitr) # for tables
+library(sf)
+library(ggthemes)
+library(viridis)
+library(scales)
+library(brms)
+library(knitr)
+library(here)
+library(broom)
+library(RANN)
+library(bayesplot)
+library(scico)
+library(ggdist)
+library(usethis)
+library(tidybayes)
+library(tmap)
+library(plotly)
+library(parameters)
+```
+
+<br>
+
+## 3. Import datasets
+
+Import data required for the analysis.
+
+```{r import}
+dat <- readRDS(here::here("data/dat.rds"))
+dat_scale_ln <- readRDS(here::here("data","dat_scale_ln.rds"))
+load(here::here("data/scale_clusters_sf.rda"))
+```
+
+```{r functions}
+# https://cran.r-project.org/web/packages/biscale/vignettes/biscale.html
+library(biscale)
+library(ggspatial)
+library(cowplot)
+mybiscale_func <- function(df, x, y, dim, title) {
+  quo_x <- rlang::enquo(x)
+  quo_y <- rlang::enquo(y)
+
+  # quote x and y inputs
+  xQN <- rlang::quo_name(rlang::enquo(x))
+  yQN <- rlang::quo_name(rlang::enquo(y))
+
+  data <- biscale::bi_class(df, x = !!quo_x, y = !!quo_y, style = "quantile", dim = dim)
+
+  legend <- biscale::bi_legend(
+    pal = "GrPink",
+    dim = dim,
+    xlab = xQN,
+    ylab = yQN,
+    size = 8
+  )
+
+  map <- ggplot() +
+    geom_sf(
+      data = data, aes(fill = bi_class),
+      color = "white",
+      size = 0.1,
+      show.legend = FALSE
+    ) +
+    bi_scale_fill(pal = "GrPink", dim = dim) +
+    labs(
+      title = title,
+      caption = "SCALE study MLW"
+    ) +
+    theme_minimal() +
+    theme_light(base_family = "Oswald")
+
+
+  map <- map +
+    ggspatial::annotation_scale(location = "br") +
+    ggspatial::annotation_north_arrow(
+      location = "br",
+      pad_y = unit(1, "cm")
+    )
+
+  finalPlot <- cowplot::ggdraw() +
+    cowplot::draw_plot(map, 0, 0, 1, 1) +
+    cowplot::draw_plot(legend, 0.14, 0.73, 0.2, 0.2)
+
+  finalPlot
+}
+```
+
+
+<br>
+
+## 4. Prevalance model that was selected among the prevalance model candidates
+
+```{r prev_model_rintc_31, eval=TRUE}
+prev_model_rintc_31 <- readRDS(here::here("data/prev_model_rintc_31.rds"))
+
+
+model_parameters(prev_model_rintc_31, centrality = "mean", effects = "all", ci = 0.95) %>%
+  print_md()
+
+
+summary(prev_model_rintc_31)
+plot(prev_model_rintc_31)
+```
+
+
+<br>
+
+## 5. Notification model that was selected among the Notification model candidates 
+
+```{r not_11_rintc_adj_d, eval=TRUE}
+notif_model_rintc_25 <- readRDS(here::here("data/notif_model_rintc_25.rds"))
+
+model_parameters(notif_model_rintc_25, centrality = "mean", effects = "all", ci = 0.95, exponentiate = TRUE) %>%
+  print_md()
+
+
+summary(notif_model_rintc_25)
+
+
+plot(notif_model_rintc_25)
+```
+
+<br>
+
+## 6. Comparing the prevalence rate fromm the the predictions of the two final models of prevalence and notifications
+
+```{r p_prev1_notif11_rintc}
+p_prev31_notif25_rintc <- readRDS(here::here("data/p_prev31_notif25_rintc.rds"))
+
+
+p_prev31_notif25_rintc25_rintc_long <- p_prev31_notif25_rintc %>%
+  pivot_longer(
+    cols = c("p_prev", "p_notif"),
+    names_to = "rate_250", values_to = "value"
+  )
+
+p_prev31_notif25_rintc25_rintc_long <- p_prev31_notif25_rintc25_rintc_long %>%
+  mutate(
+    cluster_c = factor(paste0("c", cluster),
+      levels = paste0("c", 1:72)
+    )
+  )
+
+p_prev31_notif25_rintc25_rintc_long %>%
+  filter(cluster %in% c(1:20)) %>%
+  ggplot() +
+  geom_density(aes(x = value, color = rate_250)) +
+  facet_wrap(cluster_c ~ ., scales = "free") +
+  theme_minimal()
+
+p_prev31_notif25_rintc25_rintc_long %>%
+  filter(cluster %in% c(1:20)) %>%
+  ggplot() +
+  geom_boxplot(aes(y = value, x = cluster_c, color = rate_250)) +
+  facet_wrap(cluster_c ~ ., scales = "free") +
+  theme_minimal()
+
+p_prev31_notif25_rintc25_rintc_long %>%
+  filter(cluster %in% c(21:41)) %>%
+  ggplot() +
+  geom_density(aes(x = value, color = rate_250)) +
+  facet_wrap(cluster_c ~ ., scales = "free") +
+  theme_minimal()
+
+p_prev31_notif25_rintc25_rintc_long %>%
+  filter(cluster %in% c(21:41)) %>%
+  ggplot() +
+  geom_boxplot(aes(y = value, x = cluster_c, color = rate_250)) +
+  facet_wrap(cluster_c ~ ., scales = "free") +
+  theme_minimal()
+
+p_prev31_notif25_rintc25_rintc_long %>%
+  filter(cluster %in% c(42:62)) %>%
+  ggplot() +
+  geom_density(aes(x = value, color = rate_250)) +
+  facet_wrap(cluster_c ~ ., scales = "free") +
+  theme_minimal()
+
+p_prev31_notif25_rintc25_rintc_long %>%
+  filter(cluster %in% c(42:62)) %>%
+  ggplot() +
+  geom_boxplot(aes(y = value, x = cluster_c, color = rate_250)) +
+  facet_wrap(cluster_c ~ ., scales = "free") +
+  theme_minimal()
+
+p_prev31_notif25_rintc25_rintc_long %>%
+  filter(cluster %in% c(63:72)) %>%
+  ggplot() +
+  geom_density(aes(x = value, color = rate_250)) +
+  facet_wrap(cluster_c ~ ., scales = "free") +
+  theme_minimal()
+
+p_prev31_notif25_rintc25_rintc_long %>%
+  filter(cluster %in% c(63:72)) %>%
+  ggplot() +
+  geom_boxplot(aes(y = value, x = cluster_c, color = rate_250)) +
+  facet_wrap(cluster_c ~ ., scales = "free") +
+  theme_minimal()
+
+
+# Take the posterior medians for prevelance to notification ratios that were produced in the posteriors
+cluster_ests_50_prev31_notif25_rintc <- readRDS(here::here("data/cluster_ests_50_prev31_notif25_rintc.rds"))
+# look at this table
+cluster_ests_50_prev31_notif25_rintc
+
+# plot the prevalence to notification ratios per cluster
+cluster_ests_50_prev31_notif25_rintc %>%
+  ggplot() +
+  geom_pointrange(aes(x = cluster, y = prev_to_notif_ratio, ymin = .lower, ymax = .upper, color = prev_to_notif_ratio > 2)) +
+  geom_hline(aes(yintercept = 1), colour = "red", linetype = "dashed") +
+  labs(y = "Prevalence to notification ratio (50% CI)")
+
+# 95% CI
+cluster_ests_95_prev31_notif25_rintc <- readRDS(here::here("data/cluster_ests_95_prev31_notif25_rintc.rds"))
+
+# look at this table
+cluster_ests_95_prev31_notif25_rintc
+
+glue::glue("The minimum P:N is  {round(min(cluster_ests_95_prev31_notif25_rintc$prev_to_notif_ratio, na.rm=TRUE),2)} to max {round(max(cluster_ests_95_prev31_notif25_rintc$prev_to_notif_ratio, na.rm=TRUE),2)} with sd {round(sd(cluster_ests_95_prev31_notif25_rintc$prev_to_notif_ratio, na.rm=TRUE),2)}")
+```
+<br>
+
+## 7. Plot of neighbourhood prevalence to notification rate ratios (Figure )
+```{r prev_notif_rateratioplot}
+# plot the prevalence to notification ratios per cluster
+# plot the prevalence to notification ratios per cluster
+cluster_ests_95_prev31_notif25_rintc <- cluster_ests_95_prev31_notif25_rintc %>%
+  mutate(
+    prev_to_notif_ratio_4gp = cut(prev_to_notif_ratio,
+                                  breaks = quantile(prev_to_notif_ratio,
+                                                    probs = c(0, 0.25, 0.50, 0.75, 1)
+                                  ),
+                                  labels = 1:4,
+                                  include.lowest = TRUE
+    ),
+    prev_to_notif_ratio_4gp = fct_rev(prev_to_notif_ratio_4gp)
+  )
+
+###Add 2019 cnr to cluster_ests_95_prev31_notif25_rintc
+dat_cnr_2019 <- select(dat_scale_ln, cluster_number, tb_year, total_confirmed, population) %>% 
+  filter(tb_year == 2019) %>%
+  mutate(cnr_2019 = (total_confirmed/population)*100000) %>%
+  rename(cluster = cluster_number)
+
+
+cluster_ests_95_prev31_notif25_rintc <- left_join(cluster_ests_95_prev31_notif25_rintc,
+                                                  dat_cnr_2019, by = "cluster")
+
+
+cluster_ests_95_prev31_notif25_rintc %>%
+  ggplot() +
+  geom_hline(aes(yintercept=1)) +
+  geom_hline(aes(yintercept=4.49), linetype=5, colour="darkgrey") +
+  geom_pointrange(aes(x = fct_reorder(as.character(cluster), prev_to_notif_ratio), y = prev_to_notif_ratio,
+                      ymin = .lower, ymax = .upper, color = cnr_2019)) + # , show.legend = FALSE) +
+  scale_color_scico(palette = "vik",
+                    name = "Case notification rate\n(per 100k), 2019") +
+  coord_flip() +
+  scale_y_log10(labels=c(0.25,0.5,1,2,4.5, 5,10,20),
+                breaks=c(0.25,0.5,1,2,4.5,5,10,20)) +
+  theme_ggdist() +
+  # theme(text = element_text(size = 14)) +
+  labs(y = "Prevalence to notification ratio (95% Crl)", x = "Neighbourhood identifier") +
+   theme(legend.position = "top",
+        panel.border = element_rect(colour = "black", fill=NA)) +
+        guides(colour = guide_colourbar(title.position = "top"), title.hjust=0.5)
+
+ggsave(filename = here::here("figures/Fig3.tiff"), height = 10, dpi = 310)
+```
+
+
+<br>
+
+## 8. The probability that prevalence to notification ratios is above certain values
+```{r posterior_prob}
+# Looking at the posterior distribution of prev_to_notif_ratio work out the
+# percentage of values above 1, 2, 3
+
+p_prev31_notif25_rintc %>%
+  group_by(cluster) %>%
+  summarise(
+    mean_1_cluster = mean(prev_to_notif_ratio > 1) * 250,
+    mean_2_cluster = mean(prev_to_notif_ratio > 2) * 250,
+    mean_3_cluster = mean(prev_to_notif_ratio > 3) * 250
+  ) %>%
+  pivot_longer(cols = -cluster, names_to = "mean_above", values_to = "value") %>%
+  ggplot(aes(x = cluster, y = value, color = mean_above)) +
+  labs(x = "Cluster", y = "Probability %") +
+  geom_point()
+```
+<br>
+
+## 9. The prevalance to notification rate ratios on the map of Blantyre with an inset Map of malawi (Figure )
+
+```{r tmap_interactive, echo=FALSE, message=FALSE, comment=NA, warning=FALSE}
+library(tmaptools)
+library(tmap)
+library(OpenStreetMap)
+library(malawiShapefiles)
+# devtools::install_github("mcewenkhundi/malawiShapefiles")
+library(grid)
+
+
+cluster_ests_adjusted_bi <- cluster_ests_95_prev31_notif25_rintc %>%
+  select(cluster, prev_to_notif_ratio, prev_to_notif_ratio_4gp) %>%
+  mutate(cluster = paste0("c", cluster))
+
+
+scale_clusters_sf_bi <- inner_join(cluster_ests_adjusted_bi,
+  scale_clusters_sf,
+  by = "cluster"
+)
+
+scale_clusters_sf_bi <- scale_clusters_sf_bi %>%
+  mutate(cluster = parse_number(cluster)) %>%
+  mutate(quarter4 = if_else(prev_to_notif_ratio_4gp == 4, "yes", "no"))
+
+scale_clusters_sf_bi <- st_as_sf(scale_clusters_sf_bi)
+
+##keep 4th quartile neighbourhoods separately 
+scale_clusters_sf_bi_4q <- filter(scale_clusters_sf_bi, quarter4 == "yes")
+
+osm_BT <- read_osm(scale_clusters_sf_bi, upperLeft = c(-15.72, 34.96), lowerRight = c(-15.86, 35.11))
+g_map_pn <- tm_shape(osm_BT) +
+  tm_rgb() +
+  tm_shape(scale_clusters_sf_bi) +
+  tm_polygons(col = "prev_to_notif_ratio",
+    title = "Prevalence to notification ratio",
+    legend.is.portrait = FALSE,
+    breaks = c(0, 2, 4, 6, 8, 10)
+     ) +
+  tm_text("cluster", size = 1.2) +
+  tm_shape(scale_clusters_sf_bi_4q) +
+    tm_borders(col = "blue", lwd = 2) +
+  tm_graticules(alpha = 0.3,  labels.size = 1) +
+  tm_layout(
+    legend.title.size = 1.5,
+    legend.text.size = 1.5,
+    legend.position = c("left", "BOTTOM"),
+    legend.stack = "horizontal",
+    # main.title = "Map of prevalence to notification ratios \n(Inset map of malawi with Blantyre in Red)",
+    # main.title.position = "left",
+    # main.title.size = 1,
+    legend.bg.alpha = 1
+  ) +
+  tm_scale_bar(
+    color.dark = "black", # Customize scale bar and north arrow
+    text.size = 1,
+    lwd = 2,
+    position = c(0.7, 0.03)
+  ) + # set position of the scale bar
+  tm_compass(
+    type = "4star",
+    size = 2, # set size of the compass
+    fontsize = 2, # set font size of the compass
+    color.dark = "black", # color the compass
+    text.color = "black", # color the text of the compass
+    position = c(0.4, 0.04)
+  ) + # set position of the compass
+  tm_credits("(c) Map tile data from OpenStreetMap", position=c("right", "bottom"))
+
+g_map_pn
+tmap_save(g_map_pn, here::here("figures/bt_map_pn.png"))
+
+# Create insert maps
+bt_region <- st_bbox(c(
+  xmin = 34.97255, xmax = 35.25982,
+  ymin = -15.86270, ymax = -15.72259
+),
+crs = st_crs(scale_clusters_sf_bi)
+) %>%
+  st_as_sfc()
+
+bt_region <- malawi %>%
+  filter(NAME_1 == "Blantyre")
+
+lake_malawi <- malawi_lakes %>%
+  filter(NAME == "LAKE NYASA")
+
+malawi_inset <- tm_shape(malawi) +
+  tm_polygons() +
+  tm_shape(bt_region, size = 0.1) +
+  tm_borders(lwd = 3, col = "red") +
+  tm_shape(lake_malawi) +
+  tm_fill(col = "lightblue")
+
+# Save map from the viewer save it to the figures directory as bt_map_pn.png
+malawi_vp <- viewport(x = 0.88, y = 0.83,width = 0.3, height = 0.3)
+# print(malawi_inset, vp = malawi_vp)
+
+tmap_save(
+  tm = g_map_pn, width = 13, height = 12,dpi = 330,
+  filename = here::here("figures/Fig4.tiff"),
+  insets_tm = malawi_inset,
+  insets_vp = malawi_vp
+)
+```
+<br>
+
+## 10. Reproducibility
+
+This reproduction of the analysis was run by:
+
+```{r sysinfo, echo=FALSE, message=FALSE, comment=NA, warning=FALSE}
+
+sysinfo <- Sys.info()
+
+sysinfo <- data.frame(keyName = names(sysinfo), value = sysinfo, row.names = NULL)
+
+sysinfo %>% kable()
+```
+
+Analysis was run at **`r Sys.time()`**, and using the following Session Info:
+
+```{r sessioninfo, echo=FALSE, results='markdown', message=FALSE, comment=NA, warning=FALSE}
+sessionInfo()
+```

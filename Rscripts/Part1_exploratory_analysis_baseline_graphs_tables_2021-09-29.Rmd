@@ -1,0 +1,395 @@
+---
+title: "TB Hotspot clusters P:N"
+
+subtitle: "Exploratory analysis of the neighbourhood level data"
+
+author: |
+  | McEwen Khundi
+  |
+  | London School of Hygiene and Tropical Medicine, London, UK
+  | Malawi-Liverpool-Wellcome Clinical Research Programme, Blantyre, Malawi
+  |
+
+date: | 
+  | `r format(Sys.time(), "%B %d, %Y")`
+  |
+  | Table of Contents:
+output: 
+  html_document:
+    df_print: paged
+    theme: spacelab
+    toc: true
+---
+
+<br>
+
+## 1. Backgound
+
+<br>
+
+## 2. Set-up
+
+Load all required packages for analysis.
+
+```{r setup, message=FALSE}
+library(tidyverse)    #for data manipulation
+library(pmthemes)     #for ggplot themes
+library(knitr)        #for tables
+library(arsenal)
+library(sf)
+library(scales)
+library(viridis)
+library(patchwork)
+library(flextable)
+
+select <- dplyr::select
+```
+
+<br>
+
+## 3. Import datasets
+
+Import data required for the analysis.
+
+```{r import}
+load(here::here("data/all_cases_sf.rda"))
+load(here::here("data/cluster_cases_sf.rda"))
+load(here::here("data/clinics.rda"))
+load(here::here("data/cnrs.rda"))
+load(here::here("data/scale_clusters.rda"))
+dat_scale <- readRDS(here::here("data/dat_scale.rds"))
+dat_scale_ln <- readRDS(here::here("data/dat_scale_ln.rds"))
+
+dat_sf <- dat_scale
+dat_sf <- dat_sf %>%
+  mutate(rate_prev_tbcases = (n_prev_tbcases / tent_cxr_total) * 100000)
+
+dat_prev_sf <- dat_sf %>%
+  mutate(
+    name = "TB prevalence",
+    tb_year = 2019,
+    tb_year = as.factor(tb_year)
+  ) %>%
+  select(cluster, tb_year, name, value = rate_prev_tbcases, geometry)
+
+dat_sf <- st_as_sf(dat_sf)
+dat_sf$cluster <- factor(readr::parse_number(dat_scale$cluster))
+
+# convert to sf object
+dat_scale_ln_sf <- st_as_sf(dat_scale_ln)
+
+dat_scale_ln_sf$cluster <- factor(readr::parse_number(dat_scale_ln_sf$cluster))
+
+dat_scale_ln_sf <- dat_scale_ln_sf %>%
+  mutate(rate_total_confirmed = (total_confirmed / population) * 100000)
+
+dat_notif_prev_sf <- dat_scale_ln_sf %>%
+  mutate(name = "TB notification") %>%
+  select(cluster, tb_year, name, value = rate_total_confirmed)
+
+dat_notif_prev_sf <- bind_rows(dat_notif_prev_sf, dat_prev_sf)
+
+dat_notif_prev_sf$tb_year <- fct_relevel(
+  as.character(dat_notif_prev_sf$tb_year),
+  "2015", "2016", "2017", "2018", "2019"
+)
+
+dat_notif_prev_sf <- dat_notif_prev_sf %>%
+  mutate(name = str_c(name, ": ", tb_year))
+```
+
+
+## 4. Baseline table comparing cluster vs. non cluster residents. TB notifications.
+
+```{r tidy, results="asis"}
+tab_baseline <- tableby(resident ~ year + sex + age + tbclass + dotoption + hivstatus + any_micro_confirm,
+                        data = all_cases_sf %>% 
+                          mutate(year = factor(year)))
+summary(tab_baseline, title = "Baseline characteristics of patients with coordinates. Residents vs non cluster residents")
+```
+
+## 5. Table of cluster level statistics
+
+```{r clustertable}
+library(gtsummary) # produce summary tables
+
+dat_sf <- dat_sf %>%
+  mutate(n_tbcases = total_tbcases_2015 + total_tbcases_2016 +
+    total_tbcases_2017 + total_tbcases_2018 + total_tbcases_2019)
+
+dat_sf <- dat_sf %>%
+  mutate(
+    rate_tbcases_2015 = (total_tbcases_2015 / pop2015) * 100000,
+    rate_tbcases_2016 = (total_tbcases_2016 / pop2016) * 100000,
+    rate_tbcases_2017 = (total_tbcases_2017 / pop2017) * 100000,
+    rate_tbcases_2018 = (total_tbcases_2018 / pop2018) * 100000,
+    rate_tbcases_2019 = (total_tbcases_2019 / pop2019) * 100000,
+    co_rate_tbcases_2015 = (n_confirmed_2015 / pop2015) * 100000,
+    co_rate_tbcases_2016 = (n_confirmed_2016 / pop2016) * 100000,
+    co_rate_tbcases_2017 = (n_confirmed_2017 / pop2017) * 100000,
+    co_rate_tbcases_2018 = (n_confirmed_2018 / pop2018) * 100000,
+    co_rate_tbcases_2019 = (n_confirmed_2019 / pop2019) * 100000,
+    rate_prev_tbcases = (n_prev_tbcases / tent_cxr_total) * 100000,
+    clinic_distance_km = clinic_distance / 1000,
+    perce_maleadults = (male_adults / (male_adults + female_adults)) * 100,
+    total_adults_n = male_adults + female_adults,
+    perce_hiv_prev = hiv_prev * 100,
+    perce_never_primary = never_primary * 100,
+    never_primar_n = never_primary * intervadults
+  )
+
+
+dat_summary_table <- st_set_geometry(dat_sf, NULL) %>%
+  select(
+    rate_tbcases_2015,
+    rate_tbcases_2016, rate_tbcases_2017,
+    rate_tbcases_2018, rate_tbcases_2019,
+    co_rate_tbcases_2015,
+    co_rate_tbcases_2016, co_rate_tbcases_2017,
+    co_rate_tbcases_2018, co_rate_tbcases_2019,
+    rate_prev_tbcases, total_tbcases_2015, total_tbcases_2016,
+    total_tbcases_2017, total_tbcases_2018, total_tbcases_2019,
+    n_confirmed_2015, n_confirmed_2016,
+    n_confirmed_2017, n_confirmed_2018, n_confirmed_2019,
+    n_prev_tbcases,
+    pop2015, pop2016, pop2017, pop2018, pop2019, tent_cxr_total, prop_adults,
+    total_adults_n, perce_maleadults, male_adults,
+    perce_never_primary, never_primar_n, intervadults,
+    clinic_distance_km, perce_hiv_prev,
+    hiv_tests_n, hiv_positive_n
+  ) %>%
+  tbl_summary(
+    type = list(n_prev_tbcases ~ "continuous", n_confirmed_2019 ~ "continuous"),
+    statistic = list(
+      all_continuous() ~ " (mean: {mean}, range: {min}-{max}, sd:{sd})",
+      c(
+        total_tbcases_2015, total_tbcases_2016,
+        total_tbcases_2017, total_tbcases_2018,
+        total_tbcases_2019,
+        n_confirmed_2015, n_confirmed_2016,
+        n_confirmed_2017, n_confirmed_2018,
+        n_confirmed_2019,
+        n_prev_tbcases,
+        pop2015, pop2016,
+        pop2017, pop2018, pop2019, tent_cxr_total,
+        never_primar_n, intervadults, total_adults_n, male_adults,
+        # hiv_tests_n,n_hiv_positive
+      ) ~ "(sum: {sum}, range: {min}-{max}, sd: {sd})"
+    ),
+    digits = list(all_continuous() ~ 1, c(perce_hiv_prev, clinic_distance_km, perce_maleadults) ~ 2),
+    label = list(
+      rate_tbcases_2015 ~ "2015 TB notification rate per 100000",
+      rate_tbcases_2016 ~ "2016 TB notification rate per 100000",
+      rate_tbcases_2017 ~ "2017 TB notification rate per 100000",
+      rate_tbcases_2018 ~ "2018 TB notification rate per 100000",
+      rate_tbcases_2019 ~ "2019 TB notification rate per 100000",
+      co_rate_tbcases_2015 ~ "2015 confirmed TB notification rate per 100000",
+      co_rate_tbcases_2016 ~ "2016 confirmed TB notification rate per 100000",
+      co_rate_tbcases_2017 ~ "2017 confirmed TB notification rate per 100000",
+      co_rate_tbcases_2018 ~ "2018 confirmed TB notification rate per 100000",
+      co_rate_tbcases_2019 ~ "2019 confirmed TB notification rate per 100000",
+      rate_prev_tbcases ~ "2019 TB prevalence rate per 100000",
+      total_tbcases_2015 ~ "2015 TB notified cases",
+      total_tbcases_2016 ~ "2016 TB notified cases",
+      total_tbcases_2017 ~ "2017 TB notified cases",
+      total_tbcases_2018 ~ "2018 TB notified cases",
+      total_tbcases_2019 ~ "2019 TB notified cases",
+      n_confirmed_2015 ~ "2015 confirmed TB notified cases",
+      n_confirmed_2016 ~ "2016 confirmed TB notified cases",
+      n_confirmed_2017 ~ "2017 confirmed TB notified cases",
+      n_confirmed_2018 ~ "2018 confirmed TB notified cases",
+      n_confirmed_2019 ~ "2019 confirmed TB notified cases",
+      n_prev_tbcases ~ "2019 TB prevalent cases",
+      pop2015 ~ "2015 population",
+      pop2016 ~ "2016 population",
+      pop2017 ~ "2017 population",
+      pop2018 ~ "2018 population",
+      pop2019 ~ "2019 population",
+      tent_cxr_total ~ "2019 prevalence survey population",
+      prop_adults ~ "Percentage of adults (>=15y) (%)",
+      total_adults_n ~ "Adults (>=15y) (n)",
+      perce_maleadults ~ "Percentage of male adults (%)",
+      male_adults ~ "Male adults (n)",
+      clinic_distance_km ~ "Distance to TB clinic (km)",
+      perce_never_primary ~ "Household head without primary education (%)",
+      intervadults ~ "Prev interviewed (N)",
+      never_primar_n ~ "Household head without primary education (n)",
+      perce_hiv_prev ~ "HIV prevalence (%)",
+      hiv_tests_n ~ "Total HIV tests (n)",
+      hiv_positive_n ~ "HIV prevalence (n)"
+    ),
+    missing_text = "(Missing)"
+  ) %>%
+  as_flex_table()
+
+save_as_docx(
+  "Cluster level summary data" = dat_summary_table,
+  path = here::here("figures/table1.docx")
+)
+
+dat_summary_table
+```
+
+## 6. Graphs of all the variables
+```{r all_predictors}
+# Graphs of all the variables below
+g <- dat_sf %>%
+  select(cluster, geometry)
+
+dat_sf_vars <- dat_sf %>%
+  mutate(
+    never_primary = never_primary * 100,
+    hiv_prev = hiv_prev * 100,
+    clinic_distance = clinic_distance / 1000
+  ) %>%
+  select(cluster,
+    "(A) Total Population 2015" = total,
+    "(B) Percent adults (%) (>=15y)" = prop_adults,
+    "(C) Percent male adults (%)" = perc_male,
+    "(D) Distance to nearest\n      TB clinic (km)" = clinic_distance,
+    "(E) HIV prevalence (%)" = hiv_prev,
+    "(F) Household head without \n      primary education (%)" = never_primary
+  ) %>%
+  st_set_geometry(NULL) %>%
+  pivot_longer(-cluster) %>%
+  left_join(g, by = "cluster") %>%
+  st_as_sf()
+
+# library(cowplot)
+# dat_sf_vars %>%
+#     split(.$name) %>%
+#   map(~ggplot(.,aes(fill = value)) +
+#   geom_sf() +
+#     theme_minimal() +
+#     scale_fill_viridis(option = "D", direction = -1, name='')+
+#      coord_sf(expand = F) +
+#   scale_x_continuous(breaks = c(34.98, 35.02, 35.06, 35.10)) +
+#   scale_y_continuous(breaks = c(-15.86, -15.82, -15.78, -15.74)) +
+#   theme(axis.text.x=element_text(angle=45, hjust=1)) +
+#   facet_wrap(~name)) %>%
+#   cowplot::plot_grid(plotlist = .)
+
+
+
+
+dat_sf_vars_df <- dat_sf_vars %>%
+  group_nest(name)
+
+plot_sf <- function(df_sf, title_sf) {
+  ggplot(df_sf, aes(fill = value)) +
+    geom_sf() +
+    theme_minimal() +
+    scale_fill_viridis(option = "D", name = "") +
+    coord_sf(expand = F) +
+    scale_x_continuous(breaks = c(34.98, 35.02, 35.06, 35.10)) +
+    scale_y_continuous(breaks = c(-15.86, -15.82, -15.78, -15.74)) +
+    labs(title = title_sf) +
+    ggspatial::annotation_scale(pad_x = unit(0.25, "cm"),
+  pad_y = unit(0.15, "cm")) +
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1),
+      plot.title.position = "plot",
+      plot.title = element_text(size = 11)
+    ) # make the title align with yaxis labels
+}
+
+dat_sf_vars_df <- dat_sf_vars_df %>%
+  mutate(plots = map2(data, name, plot_sf))
+
+patchwork_dat_sf <- dat_sf_vars_df$plots[[1]] + dat_sf_vars_df$plots[[2]] + dat_sf_vars_df$plots[[3]] +
+  dat_sf_vars_df$plots[[4]] + dat_sf_vars_df$plots[[5]] + dat_sf_vars_df$plots[[6]]
+
+patchwork_dat_sf
+
+ggsave(here::here("figures/Fig1.tiff"), width = 25, height = 15, units = "cm")
+```
+## 7. All TB rates
+```{r all_TB_rates}
+dat_notif_prev_df <- dat_notif_prev_sf %>%
+  group_nest(name)
+
+initials <- str_c("(", LETTERS[1:6], ")")
+initials
+
+dat_notif_prev_df <- dat_notif_prev_df %>%
+  mutate(name = str_c(initials, " ", name))
+
+# Find the min and max of notifications and prevalances
+dat_notif_prev_df %>%
+  mutate(min_rate = map_dbl(data, ~ min(.x[["value"]])), max_rate = map_dbl(data, ~ max(.x[["value"]])))
+
+plot_sfnot <- function(df_sf, title_sf) {
+  ggplot(df_sf, aes(fill = value)) +
+    geom_sf() +
+    theme_minimal() +
+    scale_fill_viridis(option = "D", name = "", limits = c(0, 400)) +
+    coord_sf(expand = F) +
+    scale_x_continuous(breaks = c(34.98, 35.02, 35.06, 35.10)) +
+    scale_y_continuous(breaks = c(-15.86, -15.82, -15.78, -15.74)) +
+    labs(title = title_sf) +
+    ggspatial::annotation_scale(pad_x = unit(0.25, "cm"),
+  pad_y = unit(0.15, "cm")) +
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1),
+      plot.title.position = "plot",
+      plot.title = element_text(size = 11)
+    ) # make the title align with yaxis labels
+}
+
+plot_sfprev <- function(df_sf, title_sf) {
+  ggplot(df_sf, aes(fill = value)) +
+    geom_sf() +
+    theme_minimal() +
+    scale_fill_viridis(option = "E", name = "", limits = c(0, 1500)) +
+    coord_sf(expand = F) +
+    scale_x_continuous(breaks = c(34.98, 35.02, 35.06, 35.10)) +
+    scale_y_continuous(breaks = c(-15.86, -15.82, -15.78, -15.74)) +
+    labs(title = title_sf) +
+    ggspatial::annotation_scale(pad_x = unit(0.25, "cm"),
+  pad_y = unit(0.15, "cm")) +
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1),
+      plot.title.position = "plot",
+      plot.title = element_text(size = 11)
+    ) # make the title align with yaxis labels
+}
+
+dat_notif_plots <- dat_notif_prev_df %>%
+  filter(name != "(F) TB prevalence: 2019") %>%
+  mutate(name = str_replace(name, pattern = "TB notification", replacement = "TB CNR")) %>%
+  mutate(plots = map2(data, name, plot_sfnot))
+
+
+dat_prev_plots <- dat_notif_prev_df %>%
+  filter(name == "(F) TB prevalence: 2019") %>%
+  mutate(name = str_replace(name, pattern = "TB prevalence", replacement = "TB CPR")) %>%
+  mutate(plots = map2(data, name, plot_sfprev))
+
+notif_prev_plots <- dat_notif_plots$plots[[1]] + dat_notif_plots$plots[[2]] + dat_notif_plots$plots[[3]] +
+  dat_notif_plots$plots[[4]] + dat_notif_plots$plots[[5]] + dat_prev_plots$plots[[1]]
+
+notif_prev_plots
+
+ggsave(here::here("figures/Fig2.tiff"), width = 25, height = 15, units = "cm")
+```
+
+<br>
+
+## 8. Reproducibility
+
+This reproduction of the analysis was run by:
+
+```{r sysinfo, echo=FALSE, message=FALSE, comment=NA, warning=FALSE}
+
+sysinfo <- Sys.info()
+
+sysinfo <- data.frame(keyName=names(sysinfo), value=sysinfo, row.names=NULL)
+
+sysinfo %>% kable()
+```
+
+Analysis was run at **`r Sys.time()`**, and using the following Session Info:
+
+```{r sessioninfo, echo=FALSE, results='markdown', message=FALSE, comment=NA, warning=FALSE}
+sessionInfo()
+```

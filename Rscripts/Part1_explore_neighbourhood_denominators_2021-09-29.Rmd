@@ -1,0 +1,271 @@
+---
+title: "TBhotspots"
+
+subtitle: "Comparing denominators derived based on two methods, one WorldPOP other SCALE census"
+
+author: |
+  | McEwen Khundi
+  |
+  | London School of Tropical Hygiene & Medicine, London, UK
+  | Malawi-Liverpool-Wellcome Clinical Research Programme, Blantyre, Malawi
+  |
+
+date: | 
+  | `r format(Sys.time(), "%B %d, %Y")`
+  |
+  | Table of Contents:
+output: 
+  html_document:
+    df_print: paged
+    theme: spacelab
+    toc: true
+---
+
+<br>
+
+## 1. Backgound
+
+
+<br>
+
+## 2. Set-up
+
+Load all required packages for analysis.
+
+```{r setup, message=FALSE}
+library(tidyverse) # for data manipulation
+library(pmthemes) # for ggplot themes
+library(knitr) # for tables
+library(sf)
+library(viridis)
+```
+
+<br>
+
+## 3. Import datasets
+
+Import data required for the analysis.
+
+```{r import}
+load(here::here("data/all_cases_sf.rda"))
+load(here::here("data/scale_clusters_sf.rda"))
+
+# Population denominators estimated from the world pop data start with wp
+# From scale census
+load(here::here("data/wp_scale_cluster_pops_2015to2019.rda"))
+load(here::here("data/scalebtcity_census_2015_2019_cluster.rda"))
+```
+
+<br>
+
+## 4. Tidying and recoding
+
+```{r tidy}
+cluster_pops_wp <- wp_scale_cluster_pops_2015to2019 %>%
+  group_by(c2, year) %>%
+  summarise(wp_population = sum(pop), .groups = "drop") %>%
+  mutate(cluster = paste0("c", c2)) %>%
+  select(-c2)
+
+head(cluster_pops_wp, 20)
+
+cluster_pops_sc <- scalebtcity_census_2015_2019_cluster %>%
+  group_by(cluster, year) %>%
+  summarise(sc_population = sum(population), .groups = "drop") %>%
+  mutate(cluster = paste0("c", readr::parse_number(cluster)), )
+
+
+head(cluster_pops_sc, 20)
+
+cluster_pops <- full_join(cluster_pops_wp, cluster_pops_sc,
+  by = c("cluster", "year")
+) %>%
+  select(cluster, year, wp_population, sc_population)
+
+cluster_notifications <- all_cases_sf %>%
+  st_set_geometry(NULL) %>%
+  group_by(cluster, year) %>%
+  summarise(notifs = n(), .groups = "drop") %>%
+  filter(!is.na(cluster), between(year, 2015, 2019))
+
+head(cluster_notifications, 20)
+
+
+cnr_2015to2019 <- full_join(cluster_pops,
+  cluster_notifications,
+  by = c("year", "cluster")
+) %>%
+  relocate(c(
+    "cluster", "year", "notifs",
+    "wp_population", "sc_population"
+  ))
+
+head(cnr_2015to2019, 20)
+```
+
+<br>
+
+## 5. Comparing the world pop versus the scale interpolated denominators
+```{r}
+cluster_pops %>%
+  ggplot(aes(x = wp_population, y = sc_population)) +
+  geom_point() +
+  facet_wrap(~year)
+```
+
+
+<br>
+
+## 6. Cases notification rates calculations
+Using the world population cluster denominators and the SCALE census interpolated denominators
+
+```{r cnrs}
+# Need to calculate the confidence intervals
+cnr_2015to2019 <- cnr_2015to2019 %>%
+  mutate(
+    wp_cnr = notifs / wp_population,
+    wp_cnr_100 = wp_cnr * 100000
+  ) %>%
+  mutate(
+    sc_cnr = notifs / sc_population,
+    sc_cnr_100 = sc_cnr * 100000
+  )
+
+
+cnr_2015to2019 <- full_join(cnr_2015to2019,
+  scale_clusters_sf,
+  by = "cluster"
+) %>%
+  st_as_sf() %>%
+  mutate(cluster = factor(cluster, levels = paste0("c", 1:72)))
+
+cnr_2015to2019_df <- cnr_2015to2019 %>%
+  st_set_geometry(NULL) %>%
+  mutate(year = factor(year, levels = 2015:2019))
+
+head(cnr_2015to2019_df, 30)
+```
+
+<br>
+
+## 7. Case notification rates graphs per cluster based on world population denominators
+
+```{r wp_cnrs_graphs}
+
+
+# Cluster line graphs, example cluster one
+cnr_2015to2019_df %>%
+  filter(cluster %in% c(paste0("c", 1))) %>%
+  ggplot(aes(x = year, y = wp_cnr_100)) +
+  geom_line(aes(group = 1)) +
+  geom_point(aes(color = year, group = year)) +
+  labs(title = "WP TB notification rates per cluster per 100K population") +
+  theme_bw()
+
+
+# Cluster line graphs
+cnr_2015to2019_df %>%
+  # filter(cluster %in% c(paste0("c",1:20)))%>%
+  ggplot(aes(x = year, y = wp_cnr_100)) +
+  geom_line(aes(group = 1)) +
+  geom_point(aes(color = year, group = year)) +
+  labs(title = "WP TB notification rates per cluster per 100K population") +
+  theme_bw() +
+  facet_wrap(~cluster, ncol = 12)
+
+# Cluster map based
+cnr_2015to2019 %>%
+  ggplot(mapping = aes(fill = wp_cnr_100)) +
+  geom_sf() +
+  scale_fill_viridis(
+    option = "magma", direction = -1,
+    name = "CNR per 100"
+  ) +
+  labs(title = "WP TB notification rates per cluster per 100K population") +
+  theme_bw() +
+  facet_wrap(~year)
+```
+
+## 8. Case notification rates graphs per cluster based on SCALE census interpolated denominators
+
+```{r sc_cnrs_graphs}
+
+# Cluster line graphs, example cluster one
+cnr_2015to2019_df %>%
+  filter(cluster %in% c(paste0("c", 1))) %>%
+  ggplot(aes(x = year, y = sc_cnr_100)) +
+  geom_line(aes(group = 1)) +
+  geom_point(aes(color = year, group = year)) +
+  labs(title = "SC TB notification rates per cluster per 100K population") +
+  theme_bw()
+
+
+# Cluster line graphs
+cnr_2015to2019_df %>%
+  # filter(cluster %in% c(paste0("c",1:20)))%>%
+  ggplot(aes(x = year, y = sc_cnr_100)) +
+  geom_line(aes(group = 1)) +
+  geom_point(aes(color = year, group = year)) +
+  labs(title = "SC TB notification rates per cluster per 100K population") +
+  theme_bw() +
+  facet_wrap(~cluster, ncol = 12)
+
+# Cluster map based
+cnr_2015to2019 %>%
+  ggplot(mapping = aes(fill = sc_cnr_100)) +
+  geom_sf() +
+  scale_fill_viridis(
+    option = "magma", direction = -1,
+    name = "CNR per 100"
+  ) +
+  labs(title = "SC TB notification rates per cluster per 100K population") +
+  theme_bw() +
+  facet_wrap(~year)
+```
+<br>
+
+## 9. Case notification rates graphs per cluster compared between world population and the scale
+
+```{r wp__sc_cnrs_graphs}
+
+
+# Cluster line graphs, example cluster one
+cnr_2015to2019_df %>%
+  filter(cluster %in% c(paste0("c", 1))) %>%
+  ggplot(aes(x = sc_cnr_100, y = wp_cnr_100)) +
+  geom_line(aes(group = 1)) +
+  geom_point(aes(color = year, group = year)) +
+  labs(title = "SC vs WP TB notification rates per cluster per 100K population") +
+  theme_bw()
+
+
+# Cluster line graphs
+cnr_2015to2019_df %>%
+  # filter(cluster %in% c(paste0("c",1:20)))%>%
+  ggplot(aes(x = sc_cnr_100, y = wp_cnr_100)) +
+  geom_line(aes(group = 1)) +
+  geom_point(aes(color = year, group = year)) +
+  labs(title = "SC vs WP TB notification rates per cluster per 100K population") +
+  theme_bw() +
+  facet_wrap(~cluster, ncol = 12)
+```
+<br>
+
+## 10. Reproducibility
+
+This reproduction of the analysis was run by: 
+
+```{r sysinfo, echo=FALSE, message=FALSE, comment=NA, warning=FALSE}
+
+sysinfo <- Sys.info()
+
+sysinfo <- data.frame(keyName = names(sysinfo), value = sysinfo, row.names = NULL)
+
+sysinfo %>% kable()
+```
+
+Analysis was run at **`r Sys.time()`**, and using the following Session Info:
+
+```{r sessioninfo, echo=FALSE, results='markdown', message=FALSE, comment=NA, warning=FALSE}
+sessionInfo()
+```

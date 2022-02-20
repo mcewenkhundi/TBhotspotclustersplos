@@ -1,0 +1,490 @@
+---
+title: "TB Hotspot Cluster"
+
+subtitle: "Modelling for TB hotspotclusters analysis: posteriors derivation from the selecte models in files prev_rIntercepnt and notif_rIntercept"
+
+author: |
+  | McEwen Khundi
+  |
+  | London School of Hygiene & Tropical Medicine, Liverpool, UK
+  | Malawi-Liverpool-Wellcome Clinical Research Programme, Blantyre, Malawi
+  |
+
+date: | 
+  | `r format(Sys.time(), "%B %d, %Y")`
+  |
+  | Table of Contents:
+output: 
+  html_document:
+    df_print: paged
+    theme: spacelab
+    toc: true
+---
+
+<br>
+
+## 1. Backgound
+
+The models that are used here to derive the posterior samples were selected using rscripts loo comparison. 
+
+<br>
+
+## 2. Set-up
+
+Load all required packages for analysis.
+
+```{r setup, message=FALSE}
+library(tidyverse) # for data manipulation
+library(pmthemes) # for ggplot themes
+library(knitr) # for tables
+library(sf)
+library(ggthemes)
+library(viridis)
+library(scales)
+library(lubridate)
+library(brms)
+library(arsenal)
+library(knitr)
+library(here)
+library(spdep)
+library(broom)
+library(RANN)
+library(forcats)
+library(cowplot)
+library(bayesplot)
+library(psych)
+library(usethis)
+```
+
+<br>
+
+## 3. Import datasets
+
+Import data required for the analysis.
+
+```{r import}
+dat <- readRDS(here::here("data/dat.rds"))
+dat <- sf::st_set_geometry(dat, NULL)
+
+prev_model_rintc_31 <- readRDS(here::here("data/prev_model_rintc_31.rds"))
+notif_model_rintc_25 <- readRDS(here::here("data/notif_model_rintc_25.rds"))
+```
+
+<br>
+
+## 4. Check the prevalance model that was selected
+```{r prev_model_rintc_31}
+summary(prev_model_rintc_31)
+plot(prev_model_rintc_31)
+```
+
+<br>
+
+## 5. Drawing the posterior distribution for the posterior model for prevalences
+
+```{r prev_m_sum}
+# Prevalence model
+
+# extract the posterior samples from the prevalence model
+# Remember need to use centred variables - describe clearly in the model code how you have centred.
+post_tb_prev_m31 <- posterior_samples(prev_model_rintc_31)
+
+# add the posterior intercepts to the random effects for each cluster
+
+# mutate(across(contains("r_cluster"), ~((zi + (1-zi))*(exp(b_intercept + .x))))) %>%
+
+prev_m_sum <- post_tb_prev_m31 %>%
+  janitor::clean_names() %>%
+  select(b_intercept, zi, contains("r_cluster")) %>%
+  mutate(across(contains("r_cluster"), ~ (((1 - zi)) * (exp(b_intercept + .x))))) %>%
+  select(-b_intercept, -zi) %>%
+  rename_with(.fn = ~ stringr::str_replace_all(., "r_cluster", "p_prev")) %>%
+  rename_with(.fn = ~ stringr::str_replace_all(., "_intercept", ""))
+
+
+# have a look at the table
+cluster_prevtotals <- select(dat, cluster, tent_cxr_total) %>%
+  pivot_wider(names_from = cluster, values_from = tent_cxr_total) %>%
+  rename_with(.fn = ~ stringr::str_replace_all(., "c", "p_prev_"))
+
+# multiply by the cluster totals, to get the prevalent cases per cluster
+# prev_m_sum <- prev_m_sum %>%
+#                 mutate(across(everything(), ~.x * cluster_prevtotals[[cur_column()]]))
+# prev_m_sum
+
+prev_m_sum <- map2_df(prev_m_sum, cluster_prevtotals, ~ (.x * .y))
+
+# posterior density plots for all clusters
+# This gets the original prevalent cases per cluster from the study to compare with the model ones
+cluster2019prev <- select(dat, cluster, n_prev_tbcases) %>%
+  mutate(name = stringr::str_replace_all(cluster, "c", "p_prev_")) %>%
+  mutate(name = fct_inorder(name))
+prev_m_sum <- prev_m_sum %>%
+  rename_all(.funs = funs(str_replace(., "c", "")))
+
+prev_m_sum <- prev_m_sum %>%
+  select(num_range("p_prev_", range = 1:72))
+
+prev_m_sum %>%
+  pivot_longer(p_prev_1:p_prev_20) %>%
+  select(name, value) %>%
+  mutate(name = fct_inorder(name)) %>%
+  ggplot() +
+  geom_density(aes(x = value)) +
+  geom_vline(
+    data = cluster2019prev[1:20, ],
+    aes(xintercept = n_prev_tbcases), color = "red"
+  ) +
+  facet_wrap(name ~ ., scales = "free") +
+  theme_minimal()
+
+prev_m_sum %>%
+  pivot_longer(p_prev_1:p_prev_20) %>%
+  select(name, value) %>%
+  mutate(name = fct_inorder(name)) %>%
+  ggplot() +
+  geom_boxplot(aes(y = value, x = name)) +
+  geom_hline(
+    data = cluster2019prev[1:20, ],
+    aes(yintercept = n_prev_tbcases),
+    color = "red"
+  ) +
+  facet_wrap(name ~ ., scales = "free") +
+  theme_minimal()
+
+prev_m_sum %>%
+  pivot_longer(p_prev_21:p_prev_41) %>%
+  select(name, value) %>%
+  mutate(name = fct_inorder(name)) %>%
+  ggplot() +
+  geom_density(aes(x = value)) +
+  geom_vline(
+    data = cluster2019prev[21:41, ], aes(xintercept = n_prev_tbcases),
+    color = "red"
+  ) +
+  facet_wrap(name ~ ., scales = "free") +
+  theme_minimal()
+
+prev_m_sum %>%
+  pivot_longer(p_prev_21:p_prev_41) %>%
+  select(name, value) %>%
+  mutate(name = fct_inorder(name)) %>%
+  ggplot() +
+  geom_boxplot(aes(y = value, x = name)) +
+  geom_hline(
+    data = cluster2019prev[21:41, ],
+    aes(yintercept = n_prev_tbcases), color = "red"
+  ) +
+  facet_wrap(name ~ ., scales = "free") +
+  theme_minimal()
+
+prev_m_sum %>%
+  pivot_longer(p_prev_42:p_prev_62) %>%
+  select(name, value) %>%
+  mutate(name = fct_inorder(name)) %>%
+  ggplot() +
+  geom_density(aes(x = value)) +
+  geom_vline(
+    data = cluster2019prev[42:62, ], aes(xintercept = n_prev_tbcases),
+    color = "red"
+  ) +
+  facet_wrap(name ~ ., scales = "free") +
+  theme_minimal()
+
+prev_m_sum %>%
+  pivot_longer(p_prev_42:p_prev_62) %>%
+  select(name, value) %>%
+  mutate(name = fct_inorder(name)) %>%
+  ggplot() +
+  geom_boxplot(aes(y = value, x = name)) +
+  geom_hline(
+    data = cluster2019prev[42:62, ],
+    aes(yintercept = n_prev_tbcases), color = "red"
+  ) +
+  facet_wrap(name ~ ., scales = "free") +
+  theme_minimal()
+
+prev_m_sum %>%
+  pivot_longer(p_prev_63:p_prev_72) %>%
+  select(name, value) %>%
+  mutate(name = fct_inorder(name)) %>%
+  ggplot() +
+  geom_density(aes(x = value)) +
+  geom_vline(
+    data = cluster2019prev[63:72, ], aes(xintercept = n_prev_tbcases),
+    color = "red"
+  ) +
+  facet_wrap(name ~ ., scales = "free") +
+  theme_minimal()
+
+prev_m_sum %>%
+  pivot_longer(p_prev_63:p_prev_72) %>%
+  select(name, value) %>%
+  mutate(name = fct_inorder(name)) %>%
+  ggplot() +
+  geom_boxplot(aes(y = value, x = name)) +
+  geom_hline(
+    data = cluster2019prev[63:72, ],
+    aes(yintercept = n_prev_tbcases), color = "red"
+  ) +
+  facet_wrap(name ~ ., scales = "free") +
+  theme_minimal()
+```
+
+<br>
+
+## 6. Drawing the posterior distribution for the posterior model for notifications
+```{r notif_model_rintc_25}
+summary(notif_model_rintc_25)
+plot(notif_model_rintc_25)
+```
+
+<br>
+
+## 6. Drawing the posterior distribution for the posterior model for notifications
+```{r post_tb_notifs_m}
+# now do the same for the notification data
+post_tb_notifs_m25 <- posterior_samples(notif_model_rintc_25)
+
+# add the posterior intercepts to the random effects for each cluster
+notif_m_sum <- post_tb_notifs_m25 %>%
+  janitor::clean_names() %>%
+  select(b_intercept, contains("r_cluster")) %>%
+  mutate(across(contains("r_cluster"), ~ .x + b_intercept)) %>%
+  select(-b_intercept) %>%
+  rename_with(.fn = ~ stringr::str_replace_all(., "r_cluster", "p_notif")) %>%
+  rename_with(.fn = ~ stringr::str_replace_all(., "_intercept", "")) %>%
+  mutate(across(everything(), ~ exp(.x)))
+
+# have a look at the table
+# Get the cluster totals
+cluster_totals <- select(dat, cluster, total) %>%
+  pivot_wider(names_from = cluster, values_from = total) %>%
+  rename_with(.fn = ~ stringr::str_replace_all(., "c", "p_notif_"))
+# convert to notifications per cluster
+# notif_m_sum <- notif_m_sum %>%
+#                   mutate(across(everything(), ~.x * cluster_totals[[cur_column()]]))
+
+notif_m_sum <- map2_df(notif_m_sum, cluster_totals, ~ (.x * .y))
+notif_m_sum
+
+# posterior density plots for all clusters
+# Get the number of TB notifications for 2019 to compare with the model one's
+cluster2019notifs <- select(dat, cluster, total_tbcases_2019) %>%
+  mutate(name = stringr::str_replace_all(cluster, "c", "p_notif_")) %>%
+  mutate(name = fct_inorder(name))
+
+
+notif_m_sum <- notif_m_sum %>%
+  rename_all(.funs = funs(str_replace(., "c", "")))
+
+notif_m_sum <- notif_m_sum %>%
+  select(num_range("p_notif_", range = 1:72))
+
+
+notif_m_sum %>%
+  pivot_longer(p_notif_1:p_notif_20) %>%
+  select(name, value) %>%
+  mutate(name = fct_inorder(name)) %>%
+  ggplot() +
+  geom_density(aes(x = value)) +
+  geom_vline(
+    data = cluster2019notifs[1:20, ],
+    aes(xintercept = total_tbcases_2019), color = "red"
+  ) +
+  facet_wrap(name ~ ., scales = "free") +
+  theme_minimal()
+
+notif_m_sum %>%
+  pivot_longer(p_notif_1:p_notif_20) %>%
+  select(name, value) %>%
+  mutate(name = fct_inorder(name)) %>%
+  ggplot() +
+  geom_boxplot(aes(y = value, x = name)) +
+  geom_hline(
+    data = cluster2019notifs[1:20, ],
+    aes(yintercept = total_tbcases_2019), color = "red"
+  ) +
+  facet_wrap(name ~ ., scales = "free") +
+  theme_minimal()
+
+notif_m_sum %>%
+  pivot_longer(p_notif_21:p_notif_41) %>%
+  select(name, value) %>%
+  mutate(name = fct_inorder(name)) %>%
+  ggplot() +
+  geom_density(aes(x = value)) +
+  geom_vline(
+    data = cluster2019notifs[21:41, ], aes(xintercept = total_tbcases_2019),
+    color = "red"
+  ) +
+  facet_wrap(name ~ ., scales = "free") +
+  theme_minimal()
+
+notif_m_sum %>%
+  pivot_longer(p_notif_21:p_notif_41) %>%
+  select(name, value) %>%
+  mutate(name = fct_inorder(name)) %>%
+  ggplot() +
+  geom_boxplot(aes(y = value, x = name)) +
+  geom_hline(
+    data = cluster2019notifs[21:41, ],
+    aes(yintercept = total_tbcases_2019), color = "red"
+  ) +
+  facet_wrap(name ~ ., scales = "free") +
+  theme_minimal()
+
+notif_m_sum %>%
+  pivot_longer(p_notif_42:p_notif_62) %>%
+  select(name, value) %>%
+  mutate(name = fct_inorder(name)) %>%
+  ggplot() +
+  geom_density(aes(x = value)) +
+  geom_vline(
+    data = cluster2019notifs[42:62, ], aes(xintercept = total_tbcases_2019),
+    color = "red"
+  ) +
+  facet_wrap(name ~ ., scales = "free") +
+  theme_minimal()
+
+notif_m_sum %>%
+  pivot_longer(p_notif_42:p_notif_62) %>%
+  select(name, value) %>%
+  mutate(name = fct_inorder(name)) %>%
+  ggplot() +
+  geom_boxplot(aes(y = value, x = name)) +
+  geom_hline(
+    data = cluster2019notifs[42:62, ],
+    aes(yintercept = total_tbcases_2019), color = "red"
+  ) +
+  facet_wrap(name ~ ., scales = "free") +
+  theme_minimal()
+
+notif_m_sum %>%
+  pivot_longer(p_notif_63:p_notif_72) %>%
+  select(name, value) %>%
+  mutate(name = fct_inorder(name)) %>%
+  ggplot() +
+  geom_density(aes(x = value)) +
+  geom_vline(
+    data = cluster2019notifs[63:72, ], aes(xintercept = total_tbcases_2019),
+    color = "red"
+  ) +
+  facet_wrap(name ~ ., scales = "free") +
+  theme_minimal()
+
+notif_m_sum %>%
+  pivot_longer(p_notif_63:p_notif_72) %>%
+  select(name, value) %>%
+  mutate(name = fct_inorder(name)) %>%
+  ggplot() +
+  geom_boxplot(aes(y = value, x = name)) +
+  geom_hline(
+    data = cluster2019notifs[63:72, ],
+    aes(yintercept = total_tbcases_2019), color = "red"
+  ) +
+  facet_wrap(name ~ ., scales = "free") +
+  theme_minimal()
+```
+<br>
+
+## 7. Prevalence to notification ratios
+```{r prev_to_notif}
+# Now to derive the prevalance to notification ratios
+# First step is to scale the posterior draws to preve and not per 100000 population
+# as in p1 and n1
+
+p1 <- prev_m_sum %>%
+  mutate(across(everything(), ~ ((.x / cluster_prevtotals[[cur_column()]]) * 100000))) %>%
+  pivot_longer(p_prev_1:p_prev_72) %>%
+  mutate(cluster = parse_number(name)) %>%
+  rename(p_prev = value) %>%
+  select(-name)
+
+n1 <- notif_m_sum %>%
+  mutate(across(everything(), ~ ((.x / cluster_totals[[cur_column()]]) * 100000))) %>%
+  pivot_longer(p_notif_1:p_notif_72) %>%
+  # mutate(cluster = parse_number(name)) %>%
+  rename(p_notif = value) %>%
+  select(-name)
+
+
+# join together the posterior predictive draws for the prev model and notifs model.
+p_prev31_notif25_rintc <- bind_cols(p1, n1)
+
+# Take the ratio of the prevalence and notifications,
+p_prev31_notif25_rintc <- p_prev31_notif25_rintc %>%
+  mutate(prev_to_notif_ratio = p_prev / p_notif)
+
+# look at this table
+tidybayes::mean_qi(p_prev31_notif25_rintc$prev_to_notif_ratio)
+p_prev31_notif25_rintc
+
+
+# now group by cluster and summarise, here using medians and 50% intervals (but you can change this)
+library(tidybayes)
+cluster_ests_50_prev31_notif25_rintc <- p_prev31_notif25_rintc %>%
+  group_by(cluster) %>%
+  mean_qi(prev_to_notif_ratio, .width = 0.50)
+
+# look at this table
+cluster_ests_50_prev31_notif25_rintc
+
+# plot the prevalence to notification ratios per cluster
+cluster_ests_50_prev31_notif25_rintc %>%
+  ggplot() +
+  geom_pointrange(aes(x = cluster, y = prev_to_notif_ratio, ymin = .lower, ymax = .upper)) +
+  geom_hline(aes(yintercept = 1), colour = "red", linetype = "dashed") +
+  labs(y = "Prevalence to notification ratio (50% CI)")
+
+# 95% CI
+cluster_ests_95_prev31_notif25_rintc <- p_prev31_notif25_rintc %>%
+  group_by(cluster) %>%
+  mean_qi(prev_to_notif_ratio, .width = 0.95)
+
+# The overall 95% estimates
+p_prev31_notif25_rintc %>%
+  mean_qi(prev_to_notif_ratio, .width = 0.95)
+
+
+# look at this table
+cluster_ests_95_prev31_notif25_rintc
+
+# plot the prevalence to notification ratios per cluster
+cluster_ests_95_prev31_notif25_rintc %>%
+  ggplot() +
+  geom_pointrange(aes(x = cluster, y = prev_to_notif_ratio, ymin = .lower, ymax = .upper)) +
+  geom_hline(aes(yintercept = 1), colour = "red", linetype = "dashed") +
+  labs(y = "Prevalence to notification ratio (95% CI)")
+```
+```{r save_prev_not}
+
+saveRDS(object = post_tb_prev_m31, file = here::here("data/post_tb_prev_m31.rds"))
+saveRDS(object = post_tb_notifs_m25, file = here::here("data/post_tb_notifs_m25.rds"))
+
+saveRDS(object = p_prev31_notif25_rintc, file = here::here("data/p_prev31_notif25_rintc.rds"))
+saveRDS(object = cluster_ests_50_prev31_notif25_rintc, file = here::here("data/cluster_ests_50_prev31_notif25_rintc.rds"))
+saveRDS(object = cluster_ests_95_prev31_notif25_rintc, file = here::here("data/cluster_ests_95_prev31_notif25_rintc.rds"))
+```
+
+
+<br>
+
+## 8. Reproducibility
+
+This reproduction of the analysis was run by:
+
+```{r sysinfo, echo=FALSE, message=FALSE, comment=NA, warning=FALSE}
+
+sysinfo <- Sys.info()
+
+sysinfo <- data.frame(keyName = names(sysinfo), value = sysinfo, row.names = NULL)
+
+sysinfo %>% kable()
+```
+
+Analysis was run at **`r Sys.time()`**, and using the following Session Info:
+
+```{r sessioninfo, echo=FALSE, results='markdown', message=FALSE, comment=NA, warning=FALSE}
+sessionInfo()
+```
