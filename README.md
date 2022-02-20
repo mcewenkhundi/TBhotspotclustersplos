@@ -117,12 +117,10 @@ Neighbourhood level variables in longitudinal format
 
 ## Sensitivity analysis
 
-1.  All notified TB cases
+1.  All notified TB analysis
 
-<!-- -->
+    -   <https://github.com/mcewenkhundi/TBhotspotclustersallcasesplos>
 
-    -   Add repo link here
+2.  Postistratified TB prevalence analysis
 
-2.  Postistratified TB prevalence cases
-
-    -   Add repo link here
+    -   <https://github.com/mcewenkhundi/TBhotspotclusterspoststratificationplos>
