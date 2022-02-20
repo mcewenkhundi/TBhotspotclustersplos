@@ -85,19 +85,19 @@ the analysis
 
     -   Source of table S4_Table_notif_models_car
 
-11. Part5\_all\_models\_tables\_appendix\_notif\_rintc.R
+1.  Part5\_all\_models\_tables\_appendix\_notif\_rintc.R
 
 <!-- -->
 
     -   Souce of S2_Table_notif_models_rintc
 
-12. Part5\_all\_models\_tables\_appendix\_prev\_car.R
+1.  Part5\_all\_models\_tables\_appendix\_prev\_car.R
 
 <!-- -->
 
     -   Source of S3_Table_prev_models_car
 
-13. Part5\_all\_models\_tables\_appendix\_prev\_rintc.R
+1.  Part5\_all\_models\_tables\_appendix\_prev\_rintc.R
 
 <!-- -->
 
@@ -114,3 +114,15 @@ Neighbourhood level variables
 ### **`dat_scale_ln.rds`**
 
 Neighbourhood level variables in longitudinal format
+
+## Sensitivity analysis
+
+1.  All notified TB cases
+
+<!-- -->
+
+    -   Add repo link here
+
+2.  Postistratified TB prevalence cases
+
+    -   Add repo link here
