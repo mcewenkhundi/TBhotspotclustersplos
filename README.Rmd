@@ -38,7 +38,7 @@ Description of the analysis scripts and source script of each output in the anal
 
 1.  Part1_exploratory_analysis_baseline_graphs_tables_2021-09-29.Rmd
 
-    -   Script for producing table 1, fig1 and fig2
+    -   Script for producing table1, fig1 and fig2
 
 2.  Part2_all_models_notif_car.R
 

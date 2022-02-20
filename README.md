@@ -40,7 +40,7 @@ the analysis
 
 1.  Part1\_exploratory\_analysis\_baseline\_graphs\_tables\_2021-09-29.Rmd
 
-    -   Script for producing table 1, fig1 and fig2
+    -   Script for producing table1, fig1 and fig2
 
 2.  Part2\_all\_models\_notif\_car.R
 
