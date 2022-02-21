@@ -81,27 +81,19 @@ the analysis
 
 10. Part5\_all\_models\_tables\_appendix\_notif\_car.R
 
-<!-- -->
+    -   Source of table S4\_Table\_notif\_models\_car
 
-    -   Source of table S4_Table_notif_models_car
+11. Part5\_all\_models\_tables\_appendix\_notif\_rintc.R
 
-1.  Part5\_all\_models\_tables\_appendix\_notif\_rintc.R
+    -   S2\_Table\_notif\_models\_rintc.rtf
 
-<!-- -->
+12. Part5\_all\_models\_tables\_appendix\_prev\_car.R
 
-    -   Souce of S2_Table_notif_models_rintc
+    -   Source of S3\_Table\_prev\_models\_car
 
-1.  Part5\_all\_models\_tables\_appendix\_prev\_car.R
+13. Part5\_all\_models\_tables\_appendix\_prev\_rintc.R
 
-<!-- -->
-
-    -   Source of S3_Table_prev_models_car
-
-1.  Part5\_all\_models\_tables\_appendix\_prev\_rintc.R
-
-<!-- -->
-
-    -   Source of S1_Table_prev_models_rintc
+    -   Source of S1\_Table\_prev\_models\_rintc
 
 <br>
 

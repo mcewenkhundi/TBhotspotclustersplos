@@ -76,25 +76,17 @@ Description of the analysis scripts and source script of each output in the anal
 
 10. Part5_all_models_tables_appendix_notif_car.R
 
-<!-- -->
-
     -   Source of table S4_Table_notif_models_car
 
-1.  Part5_all_models_tables_appendix_notif_rintc.R
+11. Part5_all_models_tables_appendix_notif_rintc.R
 
-<!-- -->
+    -   S2_Table_notif_models_rintc.rtf
 
-    -   Souce of S2_Table_notif_models_rintc
+12. Part5_all_models_tables_appendix_prev_car.R
 
-1.  Part5_all_models_tables_appendix_prev_car.R
+    -   Source of S3_Table_prev_models_car   
 
-<!-- -->
-
-    -   Source of S3_Table_prev_models_car
-
-1.  Part5_all_models_tables_appendix_prev_rintc.R
-
-<!-- -->
+13. Part5_all_models_tables_appendix_prev_rintc.R
 
     -   Source of S1_Table_prev_models_rintc
 
@@ -114,7 +106,7 @@ Neighbourhood level variables in longitudinal format
 
 1.  All notified TB analysis
 
-    -   https://github.com/mcewenkhundi/TBhotspotclustersallcasesplos
+    -   <https://github.com/mcewenkhundi/TBhotspotclustersallcasesplos>
 
 2.  Postistratified TB prevalence analysis
 
