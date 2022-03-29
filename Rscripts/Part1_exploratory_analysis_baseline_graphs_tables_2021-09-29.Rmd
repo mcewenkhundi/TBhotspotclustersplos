@@ -52,8 +52,8 @@ select <- dplyr::select
 Import data required for the analysis.
 
 ```{r import}
-load(here::here("data/all_cases_sf.rda"))
-load(here::here("data/cluster_cases_sf.rda"))
+#load(here::here("data/all_cases_sf.rda"))
+#load(here::here("data/cluster_cases_sf.rda"))
 load(here::here("data/clinics.rda"))
 load(here::here("data/cnrs.rda"))
 load(here::here("data/scale_clusters.rda"))
@@ -102,10 +102,10 @@ dat_notif_prev_sf <- dat_notif_prev_sf %>%
 ## 4. Baseline table comparing cluster vs. non cluster residents. TB notifications.
 
 ```{r tidy, results="asis"}
-tab_baseline <- tableby(resident ~ year + sex + age + tbclass + dotoption + hivstatus + any_micro_confirm,
-                        data = all_cases_sf %>% 
-                          mutate(year = factor(year)))
-summary(tab_baseline, title = "Baseline characteristics of patients with coordinates. Residents vs non cluster residents")
+#tab_baseline <- tableby(resident ~ year + sex + age + tbclass + dotoption + hivstatus + any_micro_confirm,
+#                        data = all_cases_sf %>% 
+#                          mutate(year = factor(year)))
+#summary(tab_baseline, title = "Baseline characteristics of patients with coordinates. Residents vs non cluster residents")
 ```
 
 ## 5. Table of cluster level statistics
