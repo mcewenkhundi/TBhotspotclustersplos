@@ -1,9 +1,11 @@
 # Project: TBhotspotclusters
 # Purpose: Responding to reviewer comments that dont fit in the old scripts
+# Purpose: First round of reviewer response & second round of reviewer response at the bottom
 # Authur: McEwen Khundi
 
 library(tidyverse)
 library(tidybayes)
+library(sf)
 load(here::here("data/scalebtcity_census_2015_2019_cluster.rda"))
 dat_scale_ln <- readRDS(here::here("data/dat_scale_ln.rds"))
 p_prev31_notif25_rintc <- readRDS(here::here("data/p_prev31_notif25_rintc.rds"))
@@ -55,17 +57,17 @@ cluster_ests_95_cnr <- p_prev31_notif25_rintc %>%
   mean_qi(p_notif, .width = 0.95) %>%
   rename_with(.fn = ~paste0("p_notif",.x), .cols = starts_with("."))
 
-cluster_ests_95_cnr <- left_join(cluster_ests_95_cnr,
-                                 dat_cnr_pr_2019, by="cluster")
+cluster_ests_95_cnr <- left_join(dat_cnr_pr_2019, cluster_ests_95_cnr,
+                                 by="cluster")
 
 cluster_ests_95_pr <- p_prev31_notif25_rintc %>%
   group_by(cluster) %>%
   mean_qi(p_prev, .width = 0.95) %>%
   rename_with(.fn = ~paste0("p_prev",.x), .cols = starts_with("."))
 
-cluster_ests_95_pr <- left_join(cluster_ests_95_pr,
-                                 dat_cnr_pr_2019, by="cluster")
-
+cluster_ests_95_pr <- left_join(dat_cnr_pr_2019,
+                                cluster_ests_95_pr,
+                                by="cluster")
 
 #Graphs
 cluster_ests_95_cnr %>%
@@ -88,4 +90,36 @@ cluster_ests_95_pr %>%
   labs(x= "Neighbourhood identifier", y = "Prevalence rate per 100,000",
        title = "Observed in red versus Fitted mean (95% CrIs)")
 ggsave(filename = here::here("figures/S7_Fig.tiff"), width = 10, height = 6, dpi = 310)
+
+#Work added down as part of response to second round of reviewer queries
+#This forms part of the output of S3 Equation in the suplimentary section.
+
+#chisquare for cnr
+cluster_ests_95_cnr <- cluster_ests_95_cnr %>%
+  mutate(p_notif_prop_pred = p_notif/100000,
+         total_confirmed_pred = population* p_notif_prop_pred) %>%
+  relocate(total_confirmed, .after =total_confirmed_pred )
+
+cluster_ests_95_cnr <- cluster_ests_95_cnr %>%
+  mutate(chi_cnr = ((total_confirmed - total_confirmed_pred)^2)/total_confirmed_pred)
+
+cluster_ests_95_cnr %>%
+  summarise(chi_cnr_sum = sum(chi_cnr)) %>%
+  View
+
+#chisquare for pr
+cluster_ests_95_pr <- cluster_ests_95_pr %>%
+  mutate(p_prev_prop_pred = p_prev/100000,
+         n_prev_tbcases_pred = tent_cxr_total* p_prev_prop_pred) %>%
+  relocate(n_prev_tbcases, .after =n_prev_tbcases_pred )
+
+cluster_ests_95_pr <- cluster_ests_95_pr %>%
+  mutate(chi_pr = ((n_prev_tbcases - n_prev_tbcases_pred)^2)/n_prev_tbcases_pred)
+
+cluster_ests_95_pr %>%
+  summarise(chi_pr_sum = sum(chi_pr)) %>%
+  View
+
+
+
 
